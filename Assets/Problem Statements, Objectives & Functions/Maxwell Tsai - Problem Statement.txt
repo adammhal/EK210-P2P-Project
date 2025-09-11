@@ -1,0 +1,1 @@
+The goal is to design a device to enable hospital patients with limited speech and/or mobility to communicate their needs to caregivers through a light-based transmission system.
