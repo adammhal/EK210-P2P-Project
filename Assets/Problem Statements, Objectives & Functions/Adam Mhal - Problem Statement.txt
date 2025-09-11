@@ -1,0 +1,1 @@
+Robotics engineers on a busy manufacturing floor need a wireless, point-to-point method to send simple commands between machines because existing wireless and wired solutions are unreliable due to signal interference and physical clutter, which hinders efficient automation
