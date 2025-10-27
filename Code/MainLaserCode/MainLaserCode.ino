@@ -39,8 +39,8 @@ unsigned long lastKeyPressTime = 0;
 const int T9_TIMEOUT = 1000; 
 
 unsigned long nineKeyPressTime = 0;
-const int DOUBLE_PRESS_TIMEOUT = 500;
-bool backspacePending = false;
+const int NINE_KEY_TIMEOUT = 500;
+int ninePressCount = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -62,14 +62,12 @@ void setup() {
 }
 
 void loop(){
-  if (backspacePending && (millis() - nineKeyPressTime > DOUBLE_PRESS_TIMEOUT)) {
-    Serial.println("Backspace (timeout expired)");
-    doBackspace();
-    backspacePending = false;
+  if (ninePressCount > 0 && (millis() - nineKeyPressTime > NINE_KEY_TIMEOUT)) {
+    handlePendingNineAction();
   }
 
   if (keypad.isPressed('*')) {
-    backspacePending = false;
+    handlePendingNineAction();
     finalizeCurrentLetter();
     Serial.println("Servo Left (Hold)");
     if (currentAngle < 1900) {
@@ -80,7 +78,7 @@ void loop(){
   }
   
   if (keypad.isPressed('#')) {
-    backspacePending = false;
+    handlePendingNineAction();
     finalizeCurrentLetter();
     Serial.println("Servo Right (Hold)");
     if (currentAngle > 1000) {
@@ -100,7 +98,7 @@ void loop(){
     Serial.println(key);
     
     if (key == '0') {
-      backspacePending = false;
+      handlePendingNineAction();
       finalizeCurrentLetter();
       Serial.println("Zeroing Servo");
       for (int i = 0; i < 5; i++){
@@ -109,7 +107,7 @@ void loop(){
       currentAngle = 1500;
     }
     else if (key == '*' || key == '#') {
-      backspacePending = false;
+      handlePendingNineAction();
       finalizeCurrentLetter();
     }
     
@@ -124,12 +122,22 @@ void loop(){
         lastKeyPressTime = 0;
       }
       
-      if (backspacePending && (millis() - nineKeyPressTime < DOUBLE_PRESS_TIMEOUT)) {
-        Serial.println("SEND command (double-press)");
-        backspacePending = false; 
+      ninePressCount++;
+      nineKeyPressTime = millis(); 
+
+      if (ninePressCount == 1) {
+        Serial.println("9-Key: Press 1 (Backspace pending)");
+        lcd.setCursor(0, 0); lcd.print("Backspace?");
+      } else if (ninePressCount == 2) {
+        Serial.println("9-Key: Press 2 (Space pending)");
+        lcd.setCursor(0, 0); lcd.print("Add Space?");
+      } else if (ninePressCount == 3) {
+        Serial.println("9-Key: Press 3 (SUBMIT)");
+        lcd.setCursor(0, 0); lcd.print("Sending...");
         
         transmitMessage(); 
         messageBuffer = ""; 
+        ninePressCount = 0; 
         
         lcd.clear();
         lcd.setCursor(0, 0);
@@ -140,16 +148,11 @@ void loop(){
         lcd.print("Enter Message:");
         lcd.setCursor(0, 1);
         lcd.blink();
-        
-      } else {
-        Serial.println("Backspace (pending...)");
-        backspacePending = true; 
-        nineKeyPressTime = millis(); 
       }
     }
     
     else { 
-      backspacePending = false;
+      handlePendingNineAction();
       
       if (key != currentKey) {
         finalizeCurrentLetter();
@@ -176,6 +179,35 @@ void loop(){
       lcd.setCursor(cursorColumn, 1); 
     }
   }
+}
+
+void handlePendingNineAction() {
+  if (ninePressCount == 0) return;
+
+  if (ninePressCount == 1) {
+    Serial.println("9-Key: Executing Backspace");
+    doBackspace();
+  } else if (ninePressCount >= 2) {
+    Serial.println("9-Key: Executing Add Space");
+    addSpace();
+  }
+  ninePressCount = 0;
+  
+  lcd.setCursor(0, 0); 
+  lcd.print("Enter Message:   "); 
+  
+  lcd.setCursor(messageBuffer.length(), 1);
+  lcd.blink();
+}
+
+void addSpace() {
+  messageBuffer += " ";
+  int cursorColumn = messageBuffer.length();
+  lcd.setCursor(cursorColumn - 1, 1);
+  lcd.print(" ");
+  lcd.setCursor(cursorColumn, 1);
+  lcd.blink();
+  Serial.println("Buffer: " + messageBuffer);
 }
 
 void doBackspace() {
