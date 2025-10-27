@@ -42,9 +42,15 @@ unsigned long nineKeyPressTime = 0;
 const int NINE_KEY_TIMEOUT = 500;
 int ninePressCount = 0;
 
+void updateTopLCD(String s) {
+  lcd.setCursor(0, 0);
+  lcd.print(s);
+  for (int i = s.length(); i < 16; i++) {
+    lcd.print(" ");
+  }
+}
+
 void setup() {
-  Serial.begin(9600);
-  
   pinMode(servoPin, OUTPUT);
   pinMode(LASER_PIN, OUTPUT);
   digitalWrite(LASER_PIN, LOW); 
@@ -53,12 +59,9 @@ void setup() {
   lcd.init();
   
   lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Enter Message:");
+  updateTopLCD("Enter Message:");
   lcd.setCursor(0, 1);
   lcd.blink(); 
-  
-  Serial.println("Transmitter Ready.");
 }
 
 void loop(){
@@ -69,7 +72,6 @@ void loop(){
   if (keypad.isPressed('*')) {
     handlePendingNineAction();
     finalizeCurrentLetter();
-    Serial.println("Servo Left (Hold)");
     if (currentAngle < 1900) {
       currentAngle = calculateStepLeft(currentAngle);
       moveStepLeft(currentAngle);
@@ -80,7 +82,6 @@ void loop(){
   if (keypad.isPressed('#')) {
     handlePendingNineAction();
     finalizeCurrentLetter();
-    Serial.println("Servo Right (Hold)");
     if (currentAngle > 1000) {
       currentAngle = calculateStepRight(currentAngle);
       moveStepRight(currentAngle);
@@ -95,12 +96,9 @@ void loop(){
   char key = keypad.getKey(); 
   
   if (key) {
-    Serial.println(key);
-    
     if (key == '0') {
       handlePendingNineAction();
       finalizeCurrentLetter();
-      Serial.println("Zeroing Servo");
       for (int i = 0; i < 5; i++){
         zeroInitialAngle();
       }
@@ -123,31 +121,16 @@ void loop(){
       }
       
       ninePressCount++;
+      if (ninePressCount > 3) ninePressCount = 1;
+      
       nineKeyPressTime = millis(); 
 
       if (ninePressCount == 1) {
-        Serial.println("9-Key: Press 1 (Backspace pending)");
-        lcd.setCursor(0, 0); lcd.print("Backspace?");
+        updateTopLCD("Backspace?");
       } else if (ninePressCount == 2) {
-        Serial.println("9-Key: Press 2 (Space pending)");
-        lcd.setCursor(0, 0); lcd.print("Add Space?");
+        updateTopLCD("Add Space?");
       } else if (ninePressCount == 3) {
-        Serial.println("9-Key: Press 3 (SUBMIT)");
-        lcd.setCursor(0, 0); lcd.print("Sending...");
-        
-        transmitMessage(); 
-        messageBuffer = ""; 
-        ninePressCount = 0; 
-        
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Message Sent!");
-        delay(1500);
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Enter Message:");
-        lcd.setCursor(0, 1);
-        lcd.blink();
+        updateTopLCD("Send Message?");
       }
     }
     
@@ -185,16 +168,17 @@ void handlePendingNineAction() {
   if (ninePressCount == 0) return;
 
   if (ninePressCount == 1) {
-    Serial.println("9-Key: Executing Backspace");
     doBackspace();
-  } else if (ninePressCount >= 2) {
-    Serial.println("9-Key: Executing Add Space");
+  } else if (ninePressCount == 2) {
     addSpace();
+  } else if (ninePressCount == 3) {
+    transmitMessage();
+    messageBuffer = "";
   }
+  
   ninePressCount = 0;
   
-  lcd.setCursor(0, 0); 
-  lcd.print("Enter Message:   "); 
+  updateTopLCD("Enter Message:"); 
   
   lcd.setCursor(messageBuffer.length(), 1);
   lcd.blink();
@@ -207,7 +191,6 @@ void addSpace() {
   lcd.print(" ");
   lcd.setCursor(cursorColumn, 1);
   lcd.blink();
-  Serial.println("Buffer: " + messageBuffer);
 }
 
 void doBackspace() {
@@ -219,7 +202,6 @@ void doBackspace() {
     lcd.print(" "); 
     lcd.setCursor(cursorColumn, 1);
     lcd.blink();
-    Serial.println("Buffer: " + messageBuffer);
   }
 }
 
@@ -236,9 +218,6 @@ void finalizeCurrentLetter() {
   lcd.print(finalLetter);
   
   lcd.setCursor(messageBuffer.length(), 1);
-  
-  Serial.print("Letter locked: "); Serial.println(finalLetter);
-  Serial.print("Buffer: "); Serial.println(messageBuffer);
 
   currentKey = 0;
   currentKeyPressCount = 0;
@@ -246,26 +225,16 @@ void finalizeCurrentLetter() {
 
 void transmitMessage() {
   if (messageBuffer.length() == 0) {
-    Serial.println("Buffer empty, nothing to send.");
-    lcd.clear();
-    lcd.print("Buffer Empty!");
+    updateTopLCD("Buffer Empty!");
     delay(1000);
-    lcd.setCursor(0, 0);
-    lcd.print("Enter Message:");
-    lcd.setCursor(0, 1);
-    lcd.blink();
     return;
   }
   
-  Serial.println("Sending message: " + messageBuffer);
   lcd.noBlink();
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Sending...");
+  updateTopLCD("Sending...");
   lcd.setCursor(0, 1);
   lcd.print(messageBuffer);
 
-  Serial.println("Sending START signal...");
   digitalWrite(LASER_PIN, HIGH);
   delay(MESSAGE_START_PULSE);
   digitalWrite(LASER_PIN, LOW);
@@ -275,20 +244,11 @@ void transmitMessage() {
     sendByte(messageBuffer.charAt(i));
   }
 
-  Serial.println("Sending END signal...");
   digitalWrite(LASER_PIN, LOW);
   delay(MESSAGE_END_PAUSE);
-  
-  Serial.println("--- Message complete ---");
 }
 
 void sendByte(char data) {
-  Serial.print("Sending '");
-  Serial.print(data);
-  Serial.print("' (");
-  Serial.print(data, BIN);
-  Serial.println("):");
-
   digitalWrite(LASER_PIN, HIGH);
   delay(BYTE_START_PULSE);
 
@@ -306,13 +266,11 @@ void sendByte(char data) {
   }
 
   digitalWrite(LASER_PIN, LOW);
-  Serial.println("Byte complete.");
   delay(GAP_BETWEEN_LETTERS);
 }
 
 int convertToASCII(char loggedMessage, int repeatedStrokes) {
   int asciiValue = (int)loggedMessage + repeatedStrokes;
-  Serial.print("Converted to ASCII: "); Serial.println(asciiValue);
   return asciiValue;
 }
 
@@ -334,7 +292,6 @@ float calculateStepRight(float currentAngle){
 }
 
 void moveStepLeft(float currentAngle){
-  Serial.println("Moving Positive Direction");
   digitalWrite(servoPin, HIGH);
   float toMoveHIGHMicroseconds = currentAngle;
   delayMicroseconds(toMoveHIGHMicroseconds);
@@ -343,9 +300,8 @@ void moveStepLeft(float currentAngle){
 }
 
 void moveStepRight(float currentAngle){
-  Serial.println("Moving Negative Direction");
-  float toMoveHIGHMicroseconds = currentAngle;
   digitalWrite(servoPin, HIGH);
+  float toMoveHIGHMicroseconds = currentAngle;
   delayMicroseconds(toMoveHIGHMicroseconds);
   digitalWrite(servoPin, LOW);
   delayMicroseconds(2500 - toMoveHIGHMicroseconds);
