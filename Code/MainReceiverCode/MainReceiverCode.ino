@@ -5,6 +5,7 @@ LiquidCrystal_I2C lcd(0x20, 16, 2);
 
 const int RX_PIN = 6;
 String receivedMessage = "";
+int messageRow = 0;
 
 const int MESSAGE_START_TIME = 1950;
 const int MESSAGE_END_TIME = 1950;
@@ -31,7 +32,6 @@ void checkSerialForReset() {
   if (Serial.available() > 0) {
     char c = Serial.read();
     if (c == 'r') {
-      Serial.println("Reset command received. Restarting...");
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Rebooting...");
@@ -48,6 +48,7 @@ void loop() {
   lcd.setCursor(0, 0);
   lcd.print("Receiving msg:");
   receivedMessage = "";
+  messageRow = 0;
 
   while (true) {
     byte b = receiveByte();
@@ -62,17 +63,32 @@ void loop() {
       } else {
         lcd.print(receivedMessage);
       }
-      Serial.println("\n--- Message Complete ---");
-      Serial.println("Final Message: " + receivedMessage);
       delay(3000);
       break;
     } else {
       receivedMessage += (char)b;
-      lcd.setCursor(0, 1);
-      if (receivedMessage.length() > 16) {
-        lcd.print(receivedMessage.substring(receivedMessage.length() - 16));
+      
+      if (messageRow == 0) {
+        int startPos = 16 - receivedMessage.length();
+        
+        if (startPos < 14) {
+          messageRow = 1; 
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("Receiving (L2):");
+          lcd.setCursor(0, 1);
+          lcd.print(receivedMessage);
+        } else {
+          lcd.setCursor(startPos, 0);
+          lcd.print(receivedMessage);
+        }
       } else {
-        lcd.print(receivedMessage);
+        lcd.setCursor(0, 1);
+        if (receivedMessage.length() > 16) {
+          lcd.print(receivedMessage.substring(receivedMessage.length() - 16));
+        } else {
+          lcd.print(receivedMessage);
+        }
       }
     }
   }
@@ -84,7 +100,6 @@ void waitForStartSignal() {
   lcd.print("Waiting for");
   lcd.setCursor(0, 1);
   lcd.print("Start Signal...");
-  Serial.println("Waiting for START signal...");
 
   while (true) {
     while (digitalRead(RX_PIN) == HIGH) {
@@ -101,10 +116,7 @@ void waitForStartSignal() {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Start Signal OK!");
-      Serial.println("Start Signal Detected! Waiting for data...");
       return;
-    } else {
-      Serial.println("False signal, not long enough. Waiting again.");
     }
   }
 }
@@ -115,7 +127,6 @@ byte receiveByte() {
     while (digitalRead(RX_PIN) == HIGH) {
       checkSerialForReset();
       if (millis() - waitStartTime > MESSAGE_END_TIME) {
-        Serial.println("Timeout detected. Assuming END of message.");
         return 0;
       }
     }
@@ -127,44 +138,20 @@ byte receiveByte() {
     unsigned long blinkDuration = millis() - blinkStartTime;
 
     if (blinkDuration > (BYTE_START_PULSE - 150) && blinkDuration < (BYTE_START_PULSE + 150)) {
-      Serial.println("Byte-start blink detected. Receiving 8 bits...");
       delay(GAP_AFTER_BYTE_START);
 
       byte receivedData = 0;
-      char debugBits[9];
-      Serial.print("Receiving bits: ");
       for (int i = 7; i >= 0; i--) {
         delay(BIT_DURATION / 2);
         int bitState = digitalRead(RX_PIN);
         if (bitState == LOW) {
           receivedData |= (1 << i);
-          Serial.print("1");
-          debugBits[7 - i] = '1';
-        } else {
-          Serial.print("0");
-          debugBits[7 - i] = '0';
         }
         delay(BIT_DURATION / 2);
       }
-      debugBits[8] = '\0';
-
-      Serial.println();
-      Serial.print("Byte received: ");
-      Serial.println((char)receivedData);
-
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Byte: ");
-      lcd.print((char)receivedData);
-
-      lcd.setCursor(0, 1);
-      lcd.print("Bits: ");
-      lcd.print(debugBits);
 
       delay(GAP_BETWEEN_LETTERS);
       return receivedData;
     }
-
-    Serial.println("Ignoring light pulse (not a byte-start).");
   }
 }
