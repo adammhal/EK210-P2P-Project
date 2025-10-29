@@ -16,7 +16,7 @@ char keys[ROWS][COLS] = {
 };
 
 byte rowPins[ROWS] = {36, 41, 40, 38}; 
-byte colPins[COLS] = {37, 35, 39}; 
+byte colPins[COLS] = {37, 35, 42}; 
 
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
@@ -42,6 +42,9 @@ unsigned long nineKeyPressTime = 0;
 const int NINE_KEY_TIMEOUT = 500;
 int ninePressCount = 0;
 
+enum State { CALIBRATING, CONFIRMING, SENDING };
+State currentState = CALIBRATING;
+
 void updateTopLCD(String s) {
   lcd.setCursor(0, 0);
   lcd.print(s);
@@ -53,18 +56,82 @@ void updateTopLCD(String s) {
 void setup() {
   pinMode(servoPin, OUTPUT);
   pinMode(LASER_PIN, OUTPUT);
-  digitalWrite(LASER_PIN, LOW); 
 
   Wire.begin(8, 9); 
   lcd.init();
   
   lcd.backlight();
-  updateTopLCD("Enter Message:");
+  updateTopLCD("Calibration Mode");
   lcd.setCursor(0, 1);
-  lcd.blink(); 
+  lcd.print("Use * # 0");
+  lcd.noBlink(); 
 }
 
 void loop(){
+  switch (currentState) {
+    case CALIBRATING:
+      runCalibration();
+      break;
+    case CONFIRMING:
+      runConfirm();
+      break;
+    case SENDING:
+      runSending();
+      break;
+  }
+}
+
+void runCalibration() {
+  digitalWrite(LASER_PIN, HIGH);
+
+  if (keypad.isPressed('*')) {
+    if (currentAngle < 1900) {
+      currentAngle = calculateStepLeft(currentAngle);
+      moveStepLeft(currentAngle);
+    }
+  }
+  
+  if (keypad.isPressed('#')) {
+    if (currentAngle > 1000) {
+      currentAngle = calculateStepRight(currentAngle);
+      moveStepRight(currentAngle);
+    }
+  }
+
+  char key = keypad.getKey();
+  if (key == '0') {
+    for (int i = 0; i < 5; i++){
+      zeroInitialAngle();
+    }
+    currentAngle = 1500;
+  }
+  else if (key == '9') {
+    currentState = CONFIRMING;
+    digitalWrite(LASER_PIN, LOW);
+    updateTopLCD("Confirm? 9=Y 8=N");
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+  }
+}
+
+void runConfirm() {
+  char key = keypad.getKey();
+  if (key == '9') {
+    currentState = SENDING;
+    updateTopLCD("Enter Message:");
+    lcd.setCursor(0, 1);
+    lcd.blink();
+  }
+  else if (key == '8') {
+    currentState = CALIBRATING;
+    updateTopLCD("Calibration Mode");
+    lcd.setCursor(0, 1);
+    lcd.print("Use * # 0       ");
+    lcd.noBlink();
+  }
+}
+
+void runSending() {
   if (ninePressCount > 0 && (millis() - nineKeyPressTime > NINE_KEY_TIMEOUT)) {
     handlePendingNineAction();
   }
@@ -76,7 +143,6 @@ void loop(){
       currentAngle = calculateStepLeft(currentAngle);
       moveStepLeft(currentAngle);
     }
-    delay(50); 
   }
   
   if (keypad.isPressed('#')) {
@@ -86,7 +152,6 @@ void loop(){
       currentAngle = calculateStepRight(currentAngle);
       moveStepRight(currentAngle);
     }
-    delay(50);
   }
 
   if (currentKey != 0 && (millis() - lastKeyPressTime > T9_TIMEOUT)) {
@@ -174,6 +239,11 @@ void handlePendingNineAction() {
   } else if (ninePressCount == 3) {
     transmitMessage();
     messageBuffer = "";
+    
+    lcd.setCursor(0, 1);
+    for(int i=0; i<16; i++) {
+      lcd.print(" ");
+    }
   }
   
   ninePressCount = 0;
@@ -278,16 +348,16 @@ void zeroInitialAngle(){
   digitalWrite(servoPin, HIGH);
   delayMicroseconds(1500);
   digitalWrite(servoPin, LOW);
-  delayMicroseconds(1000);
+  delayMicroseconds(20000 - 1500);
 }
 
 float calculateStepLeft(float currentAngle){
-  float toMoveHIGHMicroseconds = currentAngle + 11.11111111111;
+  float toMoveHIGHMicroseconds = currentAngle + 15.11111111111;
   return toMoveHIGHMicroseconds;
 }
 
 float calculateStepRight(float currentAngle){
-  float toMoveLOWMicroseconds = currentAngle - 11.11111111111;
+  float toMoveLOWMicroseconds = currentAngle - 15.11111111111;
   return toMoveLOWMicroseconds;
 }
 
@@ -296,7 +366,7 @@ void moveStepLeft(float currentAngle){
   float toMoveHIGHMicroseconds = currentAngle;
   delayMicroseconds(toMoveHIGHMicroseconds);
   digitalWrite(servoPin, LOW);
-  delayMicroseconds(2500 - toMoveHIGHMicroseconds);
+  delayMicroseconds(20000 - toMoveHIGHMicroseconds);
 }
 
 void moveStepRight(float currentAngle){
@@ -304,5 +374,5 @@ void moveStepRight(float currentAngle){
   float toMoveHIGHMicroseconds = currentAngle;
   delayMicroseconds(toMoveHIGHMicroseconds);
   digitalWrite(servoPin, LOW);
-  delayMicroseconds(2500 - toMoveHIGHMicroseconds);
+  delayMicroseconds(20000 - toMoveHIGHMicroseconds);
 }

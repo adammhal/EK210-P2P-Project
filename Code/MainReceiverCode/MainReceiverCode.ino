@@ -4,10 +4,12 @@
 LiquidCrystal_I2C lcd(0x20, 16, 2);
 
 const int RX_PIN = 6;
+const int LED_PIN = 10; 
 String receivedMessage = "";
 int messageRow = 0;
 
-const int MESSAGE_START_TIME = 1950;
+const int MESSAGE_START_TIME = 1950; 
+const int CALIBRATION_TIME = 2000;
 const int MESSAGE_END_TIME = 1950;
 const int BYTE_START_PULSE = 500;
 const int BIT_DURATION = 250;
@@ -17,16 +19,80 @@ const int GAP_BETWEEN_LETTERS = 500;
 void checkSerialForReset();
 void waitForStartSignal();
 byte receiveByte();
+void calibrateReceiver();
+int readRxPin();
 
 void setup() {
   Serial.begin(9600);
   pinMode(RX_PIN, INPUT);
+  pinMode(LED_PIN, OUTPUT);
   Wire.begin(8, 9);
   lcd.init();
   lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Receiver Ready");
+  
+  calibrateReceiver();
 }
+
+int readRxPin() {
+  int state = digitalRead(RX_PIN);
+  if (state == LOW) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
+  return state;
+}
+
+void calibrateReceiver() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Calibration Mode");
+  lcd.setCursor(0, 1);
+  lcd.print("Point laser now...");
+
+  while (readRxPin() == HIGH) {
+    checkSerialForReset();
+  }
+
+  unsigned long startTime = millis();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Laser Detected!");
+  lcd.setCursor(0, 1);
+  lcd.print("Hold for 2 sec...");
+  bool holdOK = false;
+
+  while (readRxPin() == LOW) {
+    checkSerialForReset();
+    
+    if (!holdOK && (millis() - startTime >= CALIBRATION_TIME)) {
+      holdOK = true;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Hold OK!");
+      lcd.setCursor(0, 1);
+      lcd.print("Release laser...");
+    }
+  }
+
+  if (holdOK) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Calibration OK!");
+    lcd.setCursor(0, 1);
+    lcd.print("Receiver Ready.");
+    delay(2000);
+  } else {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Hold Failed!");
+    lcd.setCursor(0, 1);
+    lcd.print("Hold longer.");
+    delay(2000);
+    calibrateReceiver();
+  }
+}
+
 
 void checkSerialForReset() {
   if (Serial.available() > 0) {
@@ -102,12 +168,12 @@ void waitForStartSignal() {
   lcd.print("Start Signal...");
 
   while (true) {
-    while (digitalRead(RX_PIN) == HIGH) {
+    while (readRxPin() == HIGH) {
       checkSerialForReset();
     }
 
     unsigned long startTime = millis();
-    while (digitalRead(RX_PIN) == LOW) {
+    while (readRxPin() == LOW) {
       checkSerialForReset();
     }
     unsigned long duration = millis() - startTime;
@@ -124,7 +190,7 @@ void waitForStartSignal() {
 byte receiveByte() {
   while (true) {
     unsigned long waitStartTime = millis();
-    while (digitalRead(RX_PIN) == HIGH) {
+    while (readRxPin() == HIGH) {
       checkSerialForReset();
       if (millis() - waitStartTime > MESSAGE_END_TIME) {
         return 0;
@@ -132,7 +198,7 @@ byte receiveByte() {
     }
 
     unsigned long blinkStartTime = millis();
-    while (digitalRead(RX_PIN) == LOW) {
+    while (readRxPin() == LOW) {
       checkSerialForReset();
     }
     unsigned long blinkDuration = millis() - blinkStartTime;
@@ -143,7 +209,7 @@ byte receiveByte() {
       byte receivedData = 0;
       for (int i = 7; i >= 0; i--) {
         delay(BIT_DURATION / 2);
-        int bitState = digitalRead(RX_PIN);
+        int bitState = readRxPin();
         if (bitState == LOW) {
           receivedData |= (1 << i);
         }
