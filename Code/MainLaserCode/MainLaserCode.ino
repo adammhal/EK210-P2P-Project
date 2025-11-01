@@ -319,25 +319,39 @@ void transmitMessage() {
 }
 
 void sendByte(char data) {
+  // Send 500ms "Byte Start" pulse
   digitalWrite(LASER_PIN, HIGH);
   delay(BYTE_START_PULSE);
 
+  // Send gap after start pulse
   digitalWrite(LASER_PIN, LOW);
   delay(GAP_AFTER_BYTE_START);
 
+  // Loop through all 8 bits (MSB first)
   for (int i = 7; i >= 0; i--) {
+    // Isolate the bit (1 or 0)
     bool bit_is_one = (data >> i) & 1;
+    
+    // '1' = Laser ON
     if (bit_is_one) {
       digitalWrite(LASER_PIN, HIGH); 
-    } else {
+    } 
+    // '0' = Laser OFF
+    else {
       digitalWrite(LASER_PIN, LOW);  
     }
+    // Hold state for 250ms bit duration
     delay(BIT_DURATION);
   }
 
+  // Laser OFF after byte is done
   digitalWrite(LASER_PIN, LOW);
+  // Wait for gap between letters
   delay(GAP_BETWEEN_LETTERS);
 }
+
+
+
 
 int convertToASCII(char loggedMessage, int repeatedStrokes) {
   int asciiValue = (int)loggedMessage + repeatedStrokes;
