@@ -6,34 +6,30 @@ def plot_voltage_graph():
     
     time = [0, 30, 60, 90, 120]
     
-    battery1_no_resistor = [9.0, 8.8, 8.6, 8.4, 8.2]
-    battery1_with_resistor = [8.8, 8.6, 8.4, 8.2, 8.0]
+    with_resistor_trial_1 = [7.91, 7.89, 7.88, 7.87, 7.86]
+    with_resistor_trial_2 = [9.65, 9.31, 9.26, 9.24, 9.20]
     
-    battery2_no_resistor = [5.0, 4.9, 4.8, 4.7, 4.6]
-    battery2_with_resistor = [4.8, 4.7, 4.6, 4.5, 4.4]
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7), sharey=False)
-    fig.suptitle('Battery Voltage Drop Over Time Under LCD Load', fontsize=20, weight='bold')
-
-    ax1.plot(time, battery1_no_resistor, 'o-', label='Battery 1 (9V) - No Resistor', linewidth=2.5, markersize=8)
-    ax1.plot(time, battery1_with_resistor, 's--', label='Battery 1 (9V) - With Resistor', linewidth=2.5, markersize=8)
-    ax1.set_title('9V Battery Test', fontsize=16)
-    ax1.set_xlabel('Time (seconds)', fontsize=14)
-    ax1.set_ylabel('Voltage (V)', fontsize=14)
-    ax1.legend(fontsize=12, loc='upper right')
-    ax1.grid(True, which='both', linestyle='--', linewidth=0.7)
-    ax1.tick_params(axis='both', which='major', labelsize=12)
-
-    ax2.plot(time, battery2_no_resistor, 'o-', label='Battery 2 (5V USB) - No Resistor', color='green', linewidth=2.5, markersize=8)
-    ax2.plot(time, battery2_with_resistor, 's--', label='Battery 2 (5V USB) - With Resistor', color='red', linewidth=2.5, markersize=8)
-    ax2.set_title('5V USB Source Test', fontsize=16)
-    ax2.set_xlabel('Time (seconds)', fontsize=14)
-    ax2.set_ylabel('Voltage (V)', fontsize=14)
-    ax2.legend(fontsize=12, loc='upper right')
-    ax2.grid(True, which='both', linestyle='--', linewidth=0.7)
-    ax2.tick_params(axis='both', which='major', labelsize=12)
+    with_resistor_avg = np.mean([with_resistor_trial_1, with_resistor_trial_2], axis=0)
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    without_resistor_trial_1 = [7.91, 7.90, 7.89, 7.89, 7.88] 
+    without_resistor_trial_2 = [9.65, 9.62, 9.60, 9.58, 9.56] 
+    
+    without_resistor_avg = np.mean([without_resistor_trial_1, without_resistor_trial_2], axis=0)
+
+    plt.figure(figsize=(10, 7))
+    
+    plt.plot(time, with_resistor_avg, 'o-', label='With Resistor (Average)', linewidth=2.5, markersize=8, color='#E63946')
+    plt.plot(time, without_resistor_avg, 's--', label='Without Resistor (Average)', linewidth=2.5, markersize=8, color='#457B9D')
+    
+    plt.title('Battery Voltage Drop Under LCD Load', fontsize=18, weight='bold')
+    plt.xlabel('Time (seconds)', fontsize=14)
+    plt.ylabel('Voltage (V)', fontsize=14)
+    plt.legend(fontsize=12, loc='lower right')
+    plt.grid(True, which='both', linestyle='--', linewidth=0.7)
+    plt.tick_params(axis='both', which='major', labelsize=12)
+    plt.ylim(bottom=min(min(with_resistor_avg), min(without_resistor_avg)) - 0.5) 
+    
+    plt.tight_layout()
     plt.savefig('voltage_comparison_graph.png', dpi=300)
     print("Voltage graph saved as 'voltage_comparison_graph.png'")
     plt.close()
@@ -43,19 +39,19 @@ def plot_speed_graph():
 
     test_message = "hello"
     
-    time_slow_test_A = 12540
-    time_fast_test_B = 3780
+    lag_slow_test_A = 3576 
+    lag_fast_test_B = 615  
 
     labels = ['Test A (Slow - LCD in loop)', 'Test B (Fast - LCD outside loop)']
-    times = [time_slow_test_A, time_fast_test_B]
+    times = [lag_slow_test_A, lag_fast_test_B]
     
     colors = ['#E63946', '#457B9D']
 
     plt.figure(figsize=(10, 7))
     bars = plt.bar(labels, times, color=colors, width=0.5, zorder=3)
     
-    plt.title(f'Decoding Speed Comparison for "{test_message}"', fontsize=18, weight='bold')
-    plt.ylabel('Total Time (milliseconds)', fontsize=14)
+    plt.title(f'Receiver Computational Lag for "{test_message}"', fontsize=18, weight='bold')
+    plt.ylabel('Total LCD Lag Time (milliseconds)', fontsize=14)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.grid(axis='y', linestyle='--', linewidth=0.7, zorder=0)
@@ -77,3 +73,4 @@ if __name__ == '__main__':
     plot_speed_graph()
     
     print("All graphs generated.")
+
